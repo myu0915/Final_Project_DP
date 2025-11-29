@@ -1,19 +1,4 @@
-<p align="center">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Utah_State_University_logo.svg/2560px-Utah_State_University_logo.svg.png" 
-       alt="Utah State University Logo" width="420">
-</p>
 
-<h2 align="center">
-  <strong>Retail Demand Forecasting Dashboard</strong><br>
-  <em>Utah State University — DATA-5630-001 XL — Fall 2025</em>
-</h2>
-
-<p align="center">
-  Time-series forecasting laboratory built for academic and educational purposes.<br>
-  Supports CSV upload, ARIMA/SARIMA, Random Forest, and forecast comparison tools.
-</p>
-
-<hr>
 Educational Use License  
 Utah State University  
 DATA-5630-001 XL — Fall 2025

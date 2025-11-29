@@ -1,5 +1,14 @@
-# Retail Demand Forecasting Dashboard
 
+<p align="center">
+  <img
+    src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Utah_State_University_logo.svg/2560px-Utah_State_University_logo.svg.png"
+    alt="Utah State University Logo"
+    width="420"
+  />
+</p>
+
+
+# Retail Demand Forecasting Dashboard
 
 Interactive Streamlit application for **univariate time-series forecasting** and **inventory decision support**.
 Built as a course project to demonstrate an end-to-end forecasting workflow:
@@ -136,7 +145,6 @@ For a target series `y_t`, the app constructs lag features:
 - **L** (number of lags) is chosen by the user.
 - Rows with incomplete lags are dropped.
 - Forecasting uses a **recursive strategy**: each predicted point is fed back as a new lag.
-
 - User picks forecast horizon `H`.
 - The last `H` observations are used as the **test set**.
 - All earlier observations are used for **training**.
@@ -234,4 +242,23 @@ streamlit run streamlit_app.py
 
 
 
+```
+
+```
+<p align="center">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Utah_State_University_logo.svg/2560px-Utah_State_University_logo.svg.png" 
+       alt="Utah State University Logo" width="420">
+</p>
+
+<h2 align="center">
+  <strong>Retail Demand Forecasting Dashboard</strong><br>
+  <em>Utah State University — DATA-5630-001 XL — Fall 2025</em>
+</h2>
+
+<p align="center">
+  Time-series forecasting laboratory built for academic and educational purposes.<br>
+  Supports CSV upload, ARIMA/SARIMA, Random Forest, and forecast comparison tools.
+</p>
+
+<hr>
 ```
