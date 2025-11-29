@@ -1,0 +1,7 @@
+experiment,removed_feature_group,fold,val_MAPE,val_RMSE,val_MASE,description
+Full LSTM (all features),None,1,77.4473786354065,2216.803,2.9505513,Baseline LSTM with all covariates and lag features.
+Full LSTM (all features),None,2,84.6700370311737,2490.0227,3.3476973,Baseline LSTM with all covariates and lag features.
+Full LSTM (all features),None,3,86.80697083473206,2303.319,3.1194873,Baseline LSTM with all covariates and lag features.
+LSTM (lags only),All exogenous features,1,84.09168720245361,2357.3271,3.1623042,LSTM trained only on lagged sales features.
+LSTM (lags only),All exogenous features,2,84.11931991577148,2477.3523,3.3287597,LSTM trained only on lagged sales features.
+LSTM (lags only),All exogenous features,3,87.18894720077515,2311.8115,3.1317782,LSTM trained only on lagged sales features.

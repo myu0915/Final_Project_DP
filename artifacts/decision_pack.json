@@ -1,0 +1,19 @@
+{
+  "params": {
+    "lead_time": 7,
+    "service_level_pct": 95.0,
+    "z_score": 1.6448536269514722
+  },
+  "baseline": {
+    "mu_L": 17346.0,
+    "sigma_L": 0.0,
+    "SafetyStock": 0.0,
+    "ReorderPoint": 17346.0
+  },
+  "promo_scenario": {
+    "mu_L": 20815.201171875,
+    "sigma_L": 0.0,
+    "SafetyStock": 0.0,
+    "ReorderPoint": 20815.201171875
+  }
+}

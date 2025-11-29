@@ -1,161 +1,218 @@
 """
-Evaluation helpers.
+Evaluation utilities for retail demand forecasting.
 
-This file provides:
-1. Metric functions: MAPE, RMSE, MASE
-2. A simple function to build a leaderboard DataFrame
-3. A simple function placeholder for ablation study results
-
-Later you can:
-- Call these functions from notebooks.
-- Save the leaderboard and ablation results to CSV in the results/ folder.
-- Load those CSVs in the Streamlit "Model Leaderboard" page.
+Contains:
+- Metrics: MAPE, RMSE, MASE
+- Naive(Last Value) baseline evaluation
+- Simple ARIMA baseline evaluation helper
+- Leaderboard builder
 """
-
-from typing import Dict, List
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+try:
+    from statsmodels.tsa.arima.model import ARIMA
+except ImportError:
+    ARIMA = None
 
 
-def mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+# =====================================================================
+# METRICS
+# =====================================================================
+
+def safe_mape(y_true, y_pred):
     """
-    Mean Absolute Percentage Error (MAPE).
+    Compute Mean Absolute Percentage Error (MAPE) in a safe way.
 
-    Note: we avoid division by zero by ignoring points where y_true == 0.
+    MAPE ≈ average of |(true - pred) / true| * 100%
+
+    If y_true contains zeros, we add a small epsilon to prevent
+    division by zero.
     """
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+    y_true = np.asarray(y_true, dtype="float32")
+    y_pred = np.asarray(y_pred, dtype="float32")
 
-    mask = y_true != 0
-    if mask.sum() == 0:
-        return np.nan
-
-    return np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100.0
+    epsilon = 1e-6
+    return np.mean(np.abs((y_true - y_pred) / (y_true + epsilon))) * 100.0
 
 
-def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+def rmse(y_true, y_pred):
     """
     Root Mean Squared Error (RMSE).
+
+    - Penalizes large errors heavily
+    - Same unit as target (e.g., unit sales)
     """
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+    y_true = np.asarray(y_true, dtype="float32")
+    y_pred = np.asarray(y_pred, dtype="float32")
+    return np.sqrt(mean_squared_error(y_true, y_pred))
 
-    return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
-
-def mase(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    insample: np.ndarray,
-    seasonality: int = 1,
-) -> float:
+def mase(y_true, y_pred, y_train_history):
     """
     Mean Absolute Scaled Error (MASE).
 
-    MASE compares your model against a naive seasonal forecast.
+    Compares model MAE on the forecast window to the MAE of
+    a Naive(1) forecast on the training history.
+
+    - MASE ≈ 1: model similar to naive
+    - MASE < 1: model better than naive (good)
+    - MASE > 1: model worse than naive (bad)
+    """
+    y_true = np.asarray(y_true, dtype="float32")
+    y_pred = np.asarray(y_pred, dtype="float32")
+    y_train_history = np.asarray(y_train_history, dtype="float32")
+
+    # naive(1) scale: |y_t - y_{t-1}|
+    q = np.mean(np.abs(y_train_history[1:] - y_train_history[:-1]))
+
+    if q < 1e-6:
+        # flat series → fall back to MAPE
+        return safe_mape(y_true, y_pred)
+
+    mae = mean_absolute_error(y_true, y_pred)
+    return mae / q
+
+
+# =====================================================================
+# NAIVE BASELINE — "LAST VALUE" FORECAST
+# =====================================================================
+
+def eval_naive_last_value(X_windowed, Y_true, y_train_history,
+                          lag_1_idx: int, horizon: int):
+    """
+    Evaluate a simple Naive(Last Value) baseline:
+
+    For each window:
+        - Take 'sales_lag_1' from the last row of the input window
+        - Forecast that value for every day in the horizon
 
     Parameters
     ----------
-    y_true : array
-        Forecast horizon actuals.
-    y_pred : array
-        Forecast horizon predictions.
-    insample : array
-        In-sample (historical) data used to compute the naive seasonal error.
-        Example: full training series.
-    seasonality : int
-        Seasonal period (for example, 7 for weekly seasonality in daily data).
+    X_windowed : np.ndarray
+        Shape: (samples, lookback, num_features).
+    Y_true : np.ndarray
+        Shape: (samples, horizon).
+    y_train_history : np.ndarray
+        1D array of historical sales used to compute MASE scaling.
+    lag_1_idx : int
+        Index of the 'sales_lag_1' feature within the feature dimension.
+    horizon : int
+        Number of forecast days.
 
     Returns
     -------
-    float
-        MASE value. Values < 1 mean the model is better than the naive forecast.
+    metrics : dict
+        {
+          "MAPE": ...,
+          "RMSE": ...,
+          "MASE": ...
+        }
     """
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-    insample = np.array(insample)
+    # last row of each window → yesterday's sales
+    y_last = X_windowed[:, -1, lag_1_idx]  # shape: (samples,)
 
-    if len(insample) <= seasonality:
-        return np.nan
+    # repeat across horizon
+    y_pred = np.tile(y_last.reshape(-1, 1), (1, horizon))
 
-    # Naive seasonal errors: |Y_t - Y_{t-m}|
-    naive_errors = np.abs(insample[seasonality:] - insample[:-seasonality])
-    scale = np.mean(naive_errors)
+    mape_val = safe_mape(Y_true, y_pred)
+    rmse_val = rmse(Y_true, y_pred)
+    mase_val = mase(Y_true, y_pred, y_train_history)
 
-    if scale == 0:
-        return np.nan
-
-    errors = np.abs(y_true - y_pred)
-    return float(np.mean(errors / scale))
-
-
-def build_leaderboard(
-    metrics_per_model: Dict[str, Dict[str, float]]
-) -> pd.DataFrame:
-    """
-    Build a leaderboard DataFrame from a nested dictionary.
-
-    Example input:
-    metrics_per_model = {
-        "ARIMA": {"MAPE": 12.3, "RMSE": 100.5, "MASE": 0.8},
-        "LSTM":  {"MAPE": 10.1, "RMSE":  95.0, "MASE": 0.7},
+    return {
+        "MAPE": mape_val,
+        "RMSE": rmse_val,
+        "MASE": mase_val,
     }
 
-    Returns a DataFrame:
 
-        model   MAPE   RMSE   MASE
-        ARIMA   12.3   100.5  0.8
-        LSTM    10.1   95.0   0.7
+# =====================================================================
+# ARIMA BASELINE HELPER
+# =====================================================================
 
-    You can then:
-    - Save it as CSV in results/model_metrics.csv
-    - Load it in Streamlit and display as a table.
+def eval_arima_baseline(train_series, y_true_window, order=(5, 1, 0)):
+    """
+    Fit a simple ARIMA model on the training series and evaluate it on
+    a single horizon window (e.g., the last test window).
+
+    Parameters
+    ----------
+    train_series : array-like
+        Historical sales values used to fit ARIMA.
+    y_true_window : array-like
+        True sales for the forecast horizon (e.g., last test window).
+    order : tuple
+        ARIMA order (p, d, q). Default = (5, 1, 0).
+
+    Returns
+    -------
+    metrics : dict or None
+        {
+          "MAPE": ...,
+          "RMSE": ...,
+          "MASE": ...
+        }
+        or None if ARIMA is not available or fails.
+    """
+    if ARIMA is None:
+        print("statsmodels is not installed. Skipping ARIMA baseline.")
+        return None
+
+    y_train = np.asarray(train_series, dtype="float32")
+    y_true = np.asarray(y_true_window, dtype="float32")
+    horizon = len(y_true)
+
+    try:
+        model = ARIMA(y_train, order=order).fit()
+
+        forecast_start = len(y_train)
+        forecast_end = forecast_start + horizon - 1
+
+        y_pred = model.predict(start=forecast_start, end=forecast_end)
+        y_pred = np.asarray(y_pred, dtype="float32")
+
+        mape_val = safe_mape(y_true, y_pred)
+        rmse_val = rmse(y_true, y_pred)
+        mase_val = mase(y_true, y_pred, y_train)
+
+        return {
+            "MAPE": mape_val,
+            "RMSE": rmse_val,
+            "MASE": mase_val,
+        }
+
+    except Exception as e:
+        print(f"ARIMA fitting failed: {e}")
+        return None
+
+
+# =====================================================================
+# LEADERBOARD HELPER
+# =====================================================================
+
+def build_leaderboard(metrics_dict: dict):
+    """
+    Convert a dict of model_name → metrics dict into a tidy DataFrame.
+
+    Example input:
+        {
+          "Naive": {"MAPE": 30, "RMSE": 100, "MASE": 1.1},
+          "LSTM":  {"MAPE": 20, "RMSE": 80,  "MASE": 0.8},
+        }
+
+    Output: DataFrame with columns:
+        model, MAPE, RMSE, MASE
     """
     rows = []
-    for model_name, metric_dict in metrics_per_model.items():
+    for model_name, m in metrics_dict.items():
         row = {"model": model_name}
-        row.update(metric_dict)
+        row.update(m)
         rows.append(row)
 
+    if not rows:
+        return pd.DataFrame(columns=["model", "MAPE", "RMSE", "MASE"])
+
     df = pd.DataFrame(rows)
-
-    # Sort by MAPE ascending if present
-    if "MAPE" in df.columns:
-        df = df.sort_values("MAPE")
-
-    return df.reset_index(drop=True)
-
-
-def build_ablation_table(
-    feature_sets: List[str],
-    mape_values: List[float],
-) -> pd.DataFrame:
-    """
-    Simple helper to build an ablation study table.
-
-    Example:
-    feature_sets = [
-        "All features",
-        "No promotions",
-        "No oil prices",
-        "No holidays",
-    ]
-    mape_values = [10.5, 12.0, 11.3, 10.9]
-
-    Returns:
-
-        feature_set       MAPE
-        All features      10.5
-        No promotions     12.0
-        No oil prices     11.3
-        No holidays       10.9
-
-    You can compute other metrics as well if you like.
-    """
-    df = pd.DataFrame(
-        {"feature_set": feature_sets, "MAPE": mape_values}
-    )
-
-    df = df.sort_values("MAPE")
-    return df.reset_index(drop=True)
+    return df[["model", "MAPE", "RMSE", "MASE"]]

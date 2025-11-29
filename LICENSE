@@ -1,0 +1,69 @@
+<p align="center">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Utah_State_University_logo.svg/2560px-Utah_State_University_logo.svg.png" 
+       alt="Utah State University Logo" width="420">
+</p>
+
+<h2 align="center">
+  <strong>Retail Demand Forecasting Dashboard</strong><br>
+  <em>Utah State University — DATA-5630-001 XL — Fall 2025</em>
+</h2>
+
+<p align="center">
+  Time-series forecasting laboratory built for academic and educational purposes.<br>
+  Supports CSV upload, ARIMA/SARIMA, Random Forest, and forecast comparison tools.
+</p>
+
+<hr>
+Educational Use License  
+Utah State University  
+DATA-5630-001 XL — Fall 2025
+---------------------------------------------------------------
+
+This project was developed as part of the coursework for:
+
+Utah State University  
+Course: DATA-5630-001 XL — Time Series Forecasting  
+Semester: Fall 2025  
+
+All rights to this project, its structure, documentation, and
+source code belong to the student author and Utah State University.
+This project is provided strictly for academic evaluation, 
+educational purposes, and non-commercial research.
+
+You MAY:
+- View and study the code for educational or research purposes.
+- Use insights, ideas, or structural patterns in your own learning.
+- Run the Streamlit application locally for study or demonstration.
+
+You MAY NOT:
+- Redistribute this project in any public or commercial package.
+- Use the code or design for commercial purposes of any kind.
+- Claim authorship or reuse substantial portions without permission.
+- Include this code in any proprietary or monetized system.
+- Upload the datasets or any Kaggle data from this project elsewhere.
+
+---------------------------------------------------------------
+Dataset Usage Notice (Kaggle)
+---------------------------------------------------------------
+
+This project uses datasets from the Kaggle competition:
+"Store Sales — Time Series Forecasting"
+https://www.kaggle.com/competitions/store-sales-time-series-forecasting/data
+
+All rights to the dataset belong exclusively to Kaggle and the original data owners.
+The dataset is used **solely for academic coursework**, in accordance with
+Kaggle's Terms of Service.
+
+The dataset is NOT distributed with this repository.  
+Users must download the dataset directly from Kaggle.
+
+---------------------------------------------------------------
+Disclaimer
+---------------------------------------------------------------
+
+This project is provided “AS IS”, without any warranty or guarantee of accuracy.
+It is not intended for real-world forecasting, commercial deployment, or
+production decision-making.
+
+© 2025 Utah State University  
+For Educational Use Only
