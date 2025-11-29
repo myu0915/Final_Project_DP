@@ -1,10 +1,6 @@
 
 <p align="center">
-  <img
-    src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Utah_State_University_logo.svg/2560px-Utah_State_University_logo.svg.png"
-    alt="Utah State University Logo"
-    width="420"
-  />
+  <img src="assets/usu_logo.png" alt="Utah State University Logo" width="420">
 </p>
 
 
