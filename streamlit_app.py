@@ -1,5 +1,5 @@
 # This app was built with ❤️ in VS Code using Streamlit for Deep Forecast,
-# for final project and belong to Deep Forecast course.
+# for final project and belongs to Deep Forecast course.
 # All Kaggle data belongs to its respective owners. Please see LICENSE for details.
 # In this project Kaggle data is used for educational purposes only.
 
@@ -10,23 +10,23 @@
 # using ARIMA, SARIMAX, Random Forest, and Deep Learning models.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import streamlit as st # this is a main web app framework
-import pandas as pd # data manipulation and analysis (Excel-like)
-import numpy as np # numerical computing like MATLAB
-from pathlib import Path # for filesystem path manipulations similar to os.path
-import shutil            # for file operations like copying/moving files
-from typing import Optional, List # for type hints similar to typing module
+import streamlit as st  # main web app framework
+import pandas as pd  # data manipulation and analysis (Excel-like)
+import numpy as np  # numerical computing like MATLAB
+from pathlib import Path  # filesystem path manipulations
+import shutil  # file operations like copying/moving files
+from typing import Optional, List  # type hints
 
-import altair as alt  # for nicer charts on Core CSV page
+import altair as alt  # nicer charts on Core CSV page
 
 # Extra imports for Core Project page (Track 1)
 try:
-    from sklearn.ensemble import RandomForestRegressor # Random Forest model will help us benchmark
-    from sklearn.metrics import mean_squared_error, mean_absolute_error # error metrics for evaluation
-    from statsmodels.tsa.arima.model import ARIMA                       # ARIMA model for time series forecasting
-    from statsmodels.tsa.statespace.sarimax import SARIMAX              # SARIMAX model for seasonal time series
+    from sklearn.ensemble import RandomForestRegressor  # Random Forest model benchmark
+    from sklearn.metrics import mean_squared_error, mean_absolute_error  # error metrics
+    from statsmodels.tsa.arima.model import ARIMA  # ARIMA model for time series forecasting
+    from statsmodels.tsa.statespace.sarimax import SARIMAX  # SARIMAX model for seasonal TS
 except ImportError:
-    st.error("Missing required libraries. Please install: scikit-learn, statsmodels") # inform user about missing packages
+    st.error("Missing required libraries. Please install: scikit-learn, statsmodels")
     st.stop()
 
 # -------------------------------------------------------------------------
@@ -35,9 +35,10 @@ except ImportError:
 st.set_page_config(page_title="RETAIL DEMAND FORECASTING", layout="wide")
 
 # Local utility modules
-# Ensure these files exist in your 'app/' directory. 
+# Ensure these files exist in your 'app/' directory.
 # If running locally without them, some functionality will be limited.
-try: # import local app modules and handle missing files gracefully for Streamlit deployment
+try:
+    # import local app modules and handle missing files gracefully
     from app.data_utils import load_raw_data, merge_full_dataset
     from app.plots import plot_forecast
     from app.inference import (
@@ -46,7 +47,12 @@ try: # import local app modules and handle missing files gracefully for Streamli
         run_dl_forecast_with_uncertainty,
         get_model_path,
     )
-    from app.business_logic import compute_safety_stock, compute_reorder_point
+    from app.business_logic import (
+        compute_safety_stock,
+        compute_reorder_point,
+        compute_inventory_financials,
+        compute_expected_stockout_cost,
+    )
     # RF helper for Kaggle page
     from app.model_rf import rf_forecast_with_uncertainty
 except ImportError:
@@ -54,53 +60,91 @@ except ImportError:
     st.stop()
 
 # Constants used across the app
-MODEL_METRICS_FILE = Path("results/model_metrics.csv") # leaderboard data from backtesting
-ABLATION_FILE = Path("results/ablation_study.csv") # ablation study results for model analysis
-MODELS_DIR = Path("models") # directory where trained models are saved
-HOME_IMAGE_PATH = Path("assets/home_banner.png") # banner image for the home page   
+MODEL_METRICS_FILE = Path("results/model_metrics.csv")  # leaderboard data from backtesting
+ABLATION_FILE = Path("results/ablation_study.csv")  # ablation study results
+MODELS_DIR = Path("models")  # directory where trained models is are saved
+HOME_IMAGE_PATH = Path("assets/home_banner.png")  # banner image for the home page
+LOGO_PATH = Path("assets/logo.png")  # Path to the logo file
 
-# Global CSS for Sidebar and Typography will apply to all pages for consistent styling and UX
+# Global CSS for Sidebar and Typography
 st.markdown(
     """
     <style>
+    /* Global app background */
+    .main {
+        background-color: #233662;
+    }
+    .stApp {
+        background-color: #233662;
+    }
+
+    /* Sidebar background */
+    section[data-testid="stSidebar"] {
+        background: #0f172a;
+    }
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] label {
+        color: #01f757 !important;
+    }
+    section[data-testid="stSidebar"] input:checked + div {
+        background-color: #022c22 !important;
+        color: #0bf25c !important;
+        border-radius: 999px;
+        font-weight: 600;
+    }
+    section[data-testid="stSidebar"] label {
+        color: #022c22 !important;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        transition: background-color 0.2s;
+    }
+    section[data-testid="stSidebar"] label:hover {
+        background-color: rgba(2, 44, 34, 0.1);
+    }
+
+    /* Title font styling */
+    h1 {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #f3f4f6;
+        text-transform: uppercase;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        font-size: 2.5rem;
+        text-shadow: 0 0 5px rgba(34, 197, 94, 0.4);
+        margin-bottom: 0.6rem;
+    }
+
     /* Global font */
     html, body, [class*="css"] {
         font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    /* Sidebar dark gradient */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #020617 0%, #020617 35%, #030712 100%);
-    }
-    section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] label {
-        color: #e5e7eb !important;
-    }
-    
-    /* Sidebar Radio Buttons (Pill style) */
-    section[data-testid="stSidebar"] div[data-baseweb="radio"] > div { row-gap: 0.25rem; }
-    section[data-testid="stSidebar"] label { padding: 0.35rem 0.75rem; border-radius: 999px; }
-    section[data-testid="stSidebar"] input:checked + div {
-        background-color: #22c55e !important;
-        color: #022c22 !important;
-        border-radius: 999px;
-        font-weight: 600;
-    }
-
     /* Utility classes */
     .highlight-pill {
-        display: inline-block; background: #14532d; color: #bbf7d0;
-        padding: 0.1rem 0.55rem; border-radius: 999px; font-weight: 600;
-        font-size: 1.05rem; margin-bottom: 0.3rem;
+        display: inline-block;
+        background: #14532d;
+        color: #0bf25c;
+        padding: 0.1rem 0.55rem;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 1.05rem;
+        margin-bottom: 0.3rem;
     }
-    .app-subtitle { color: #9ca3af; font-size: 1.0rem; max-width: 900px; margin-bottom: 1rem; line-height: 1.6; }
-    
+    .app-subtitle {
+        color: #9ca3af;
+        font-size: 1.0rem;
+        max-width: 900px;
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+
     .main > div { padding-top: 0.25rem; }
-    h1 { margin-bottom: 0.6rem; }
 
     div[data-baseweb="tooltip"] {
         width: 300px !important;
     }
-    
+
     /* Run Forecast Button Style */
     div.stButton > button {
         border: 1px solid #ef4444;
@@ -115,7 +159,8 @@ st.markdown(
         border-color: #b91c1c;
         background-color: #b91c1c;
         color: #ffffff;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                    0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
 
     /* Compact inputs */
@@ -123,11 +168,17 @@ st.markdown(
         gap: 0.5rem;
     }
     
+    /* Make input columns more compact on Core Project page */
+    .stSelectbox, .stNumberInput, .stRadio > label, .stSlider {
+        margin-bottom: -15px; /* Reduce spacing below elements */
+        padding-top: 0;
+    }
+    
     /* Info Box Style */
     .info-box {
-        background-color: #1e293b; 
-        padding: 20px; 
-        border-radius: 8px; 
+        background-color: #1e293b;
+        padding: 20px;
+        border-radius: 8px;
         border-left: 5px solid #3b82f6;
         margin-bottom: 20px;
     }
@@ -151,7 +202,7 @@ st.markdown(
         flex-direction: column;
         justify-content: flex-start;
     }
-    
+
     .card-window:hover {
         transform: translateY(-3px);
         box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
@@ -164,7 +215,7 @@ st.markdown(
         font-weight: 700;
         color: #f3f4f6;
     }
-    
+
     .card-tag {
         display: inline-block;
         font-size: 0.75rem;
@@ -183,7 +234,7 @@ st.markdown(
         color: #cbd5f5;
         line-height: 1.6;
     }
-    
+
     .card-window small {
         display: block;
         margin-top: 1rem;
@@ -198,7 +249,7 @@ st.markdown(
     .theme-purple { border-left: 5px solid #a855f7; background: linear-gradient(145deg, #0f172a, #3b0764); }
     .theme-orange { border-left: 5px solid #f97316; background: linear-gradient(145deg, #0f172a, #431407); }
     .theme-red    { border-left: 5px solid #ef4444; background: linear-gradient(145deg, #0f172a, #450a0a); }
-    
+
     .tag-blue   { background-color: rgba(59, 130, 246, 0.2); color: #93c5fd; }
     .tag-green  { background-color: rgba(34, 197, 94, 0.2);  color: #86efac; }
     .tag-purple { background-color: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
@@ -210,13 +261,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("RETAIL DEMAND FORECASTING DASHBOARD") # Main title will appear on all pages
-
-
 # -------------------------------------------------------------------------
-# Sidebar navigation help text for all pages
+# Sidebar navigation
 # -------------------------------------------------------------------------
-st.sidebar.title("Navigation") # Sidebar title for navigation 
+
+# Display Logo in the sidebar
+st.sidebar.image(str(LOGO_PATH), use_container_width=False, output_format="PNG")
+
+st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Go to:",
     [
@@ -230,6 +282,7 @@ page = st.sidebar.radio(
     ],
 )
 
+st.title("RETAIL DEMAND FORECASTING DASHBOARD")
 
 # -------------------------------------------------------------------------
 # Helper: store last forecast in session_state
@@ -255,20 +308,18 @@ def save_last_forecast(
         "std": std,
     }
 
-
 # -------------------------------------------------------------------------
 # Helpers for Core Project Page (Track 1)
 # -------------------------------------------------------------------------
-def mape(y_true, y_pred) -> float:                           # this is Mean Absolute Percentage Error function
+def mape(y_true, y_pred) -> float:
     """Mean Absolute Percentage Error (in %)."""
-    y_true = np.asarray(y_true, dtype=float)                 # convert true values to numpy array of floats
-    y_pred = np.asarray(y_pred, dtype=float)                 # convert predicted values to numpy array of floats 
-    mask = y_true != 0                                       # create a mask to avoid division by zero
-    if not np.any(mask):                                     # if all true values are zero, return NaN
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    mask = y_true != 0
+    if not np.any(mask):
         return np.nan
-    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100) 
+    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100)
 
-# Compute RMSE, MAE, MAPE with sklearn metrics will help us evaluate model performance
 def compute_metrics(y_true, y_pred) -> dict:
     """Compute RMSE, MAE, MAPE for a pair of arrays/series."""
     rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
@@ -276,7 +327,6 @@ def compute_metrics(y_true, y_pred) -> dict:
     mape_val = mape(y_true, y_pred)
     return {"RMSE": rmse, "MAE": mae, "MAPE": mape_val}
 
-# Create lag features for Random Forest model will help us prepare data for RF
 def make_lag_features(series: pd.Series, n_lags: int = 7) -> pd.DataFrame:
     """Create a supervised learning dataframe with lag features for ML models."""
     df = pd.DataFrame({"y": series})
@@ -285,7 +335,6 @@ def make_lag_features(series: pd.Series, n_lags: int = 7) -> pd.DataFrame:
     df = df.dropna()
     return df
 
-# Random Forest recursive forecast function will help us generate forecasts using RF
 def rf_recursive_forecast(
     train_series: pd.Series,
     horizon: int,
@@ -321,14 +370,12 @@ def rf_recursive_forecast(
     future_index = pd.RangeIndex(start=0, stop=horizon)
     return pd.Series(preds, index=future_index, name="rf_forecast")
 
-# Robust numeric column detection for messy CSVs for Core Project page
 def find_numeric_candidate_columns(df: pd.DataFrame, exclude: str) -> List[str]:
     """
     Tolerant numeric-column detection:
     - ignores the chosen date column
     - tries to coerce a sample to numeric
     - if at least 60% of values are numeric, treat as numeric column.
-    This allows columns where the first row(s) are tickers / text (like yfinance).
     """
     numeric_cols: List[str] = []
     for col in df.columns:
@@ -350,13 +397,9 @@ def find_numeric_candidate_columns(df: pd.DataFrame, exclude: str) -> List[str]:
             numeric_cols.append(col)
     return numeric_cols
 
-# Heuristic datetime column detection for Core Project page for messy CSVs
-# will help us identify potential date/time columns and improve user experience
 def detect_datetime_columns(df: pd.DataFrame, sample_size: int = 200) -> List[str]:
     """
     Heuristically detect columns that look like datetimes.
-    Tries to parse a small sample from each column; if a high
-    fraction parses successfully, we treat it as a datetime candidate.
     """
     candidates: List[str] = []
     for col in df.columns:
@@ -368,13 +411,10 @@ def detect_datetime_columns(df: pd.DataFrame, sample_size: int = 200) -> List[st
             candidates.append(col)
     return candidates
 
-# Infer calendar frequency from DatetimeIndex for Core Project page and smart hints
-# will help us suggest model parameters based on data frequency
 def infer_frequency(idx: pd.DatetimeIndex) -> tuple[str, str]:
     """
     Roughly infer the calendar frequency from a DatetimeIndex.
-    Returns (code, human_label), where code is one of:
-    'D', 'W', 'M', 'Q', 'OTHER', 'UNKNOWN'.
+    Returns (code, human_label).
     """
     if not isinstance(idx, pd.DatetimeIndex) or len(idx) < 3:
         return "UNKNOWN", "unknown"
@@ -396,7 +436,6 @@ def infer_frequency(idx: pd.DatetimeIndex) -> tuple[str, str]:
 
     return "OTHER", f"~{int(round(gap))}-day gaps"
 
-
 # -------------------------------------------------------------------------
 # Home
 # -------------------------------------------------------------------------
@@ -404,11 +443,11 @@ def render_home():
     st.markdown(
         """
     ### Deep Learning & Statistical Forecasting System
-    
+
     Welcome to the Retail Demand Forecasting Dashboard. This application serves as a bridge between raw sales data and actionable business decisions.
-    It allows you to train and compare classical statistical methods (like ARIMA) against modern deep learning architectures (like LSTMs and Transformers) 
+    It allows you to train and compare classical statistical methods (like ARIMA) against modern deep learning architectures (like LSTMs and Transformers)
     to predict future demand for the Corporacion Favorita dataset.
-    
+
     Use the modules below to navigate the workflow.
     """,
         unsafe_allow_html=True,
@@ -426,7 +465,7 @@ def render_home():
 <div class="card-window theme-blue">
 <span class="card-tag tag-blue">Step 1</span>
 <h4>Data Exploration</h4>
-<p>Before modeling, you must understand the data. This module lets you view the raw training records and visualize aggregated sales trends over time. Look for seasonality, missing days, or zero-sales events.</p>
+<p>Before modeling, you must understand the the data. This module lets you view the raw training records and visualize aggregated sales trends over time. Look for seasonality, missing days, or zero-sales events.</p>
 </div>
 
 <div class="card-window theme-green">
@@ -457,22 +496,19 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    # ------------------------------------------------------------------
-    # Core Project: CSV Forecast – Final Project Description
-    # ------------------------------------------------------------------
+    # Core Project description
     st.markdown("---")
-    st.subheader("Core Project: CSV Forecast (Track 1)") # Final Project Description
+    st.subheader("Core Project: CSV Forecast (Track 1)")
 
-    left_col, right_col = st.columns([2.1, 1.4]) # Layout columns
+    left_col, right_col = st.columns([2.1, 1.4])
 
-    # High-level description + workflow
     with left_col:
         st.markdown(
             """
 <div class="info-box">
     <strong>Objective.</strong> Provide a flexible <em>time-series laboratory</em> where the instructor can drop in
     different datasets (retail sales, airline passengers, housing prices, yfinance series, etc.) and compare
-    <span style="color:#ef7777; font-weight:bold;">ARIMA/SARIMA</span> against 
+    <span style="color:#ef7777; font-weight:bold;">ARIMA/SARIMA</span> against
     <span style="color:#ef7777; font-weight:bold;">RANDOM FOREST</span> under the same interface.
     <br><br>
     <strong>Workflow on the Core Project page:</strong>
@@ -503,25 +539,21 @@ def render_home():
             unsafe_allow_html=True,
         )
 
-    # Compact “cheat sheet” with example recipes
     with right_col:
         st.markdown("#### Quick recipes for common teaching datasets")
         st.markdown(
             """
-**1. Airline Passengers (monthly)**  
-- Use SARIMA with yearly seasonality:  
+**1. Airline Passengers (monthly)** - Use SARIMA with yearly seasonality:  
  `(p,d,q) = (1,1,1)`, `(P,D,Q,s) = (1,1,1,12)`  
 - Horizon: 12-24 months  
 - Nice example of strong seasonality.
 
-**2. Logan Housing (monthly prices)**  
-- No clear seasonality → use non-seasonal ARIMA:  
-  `(p,d,q) ≈ (2,1,2)`, seasonality ` "off" `  
+**2. Logan Housing (monthly prices)** - No clear seasonality → use non-seasonal ARIMA:  
+ `(p,d,q) ≈ (2,1,2)`, seasonality `"off"`  
 - Horizon: 12 months  
-- Illustrates trend + shocks, where SARIMA is not appropriate.
+- Illustrates trend + shocks.
 
-**3. yfinance stock prices (daily)**  
-- Treat as finance series (near random walk).  
+**3. yfinance stock prices (daily)** - Treat as finance series (near random walk).  
 - Option: transform to returns and use a small ARIMA (e.g. `(1,0,1)`)  
   vs Random Forest with lagged returns.  
 - Good example of models on noisy, weakly predictable data.
@@ -531,7 +563,6 @@ def render_home():
             "The same Core Project interface is used for all of these by changing only "
             "the date column, target column and model parameters."
         )
-
 
 # -------------------------------------------------------------------------
 # Core Project Page (Track 1) - CSV upload + ARIMA/SARIMA + Random Forest
@@ -545,9 +576,7 @@ def render_core_project_page() -> None:
         "and **Random Forest** using RMSE / MAE / MAPE."
     )
 
-    # -------------------------------------------------------------
     # Data source
-    # -------------------------------------------------------------
     source = st.radio(
         "Data source",
         ["Sample dataset (data/train.csv)", "Upload your own CSV"],
@@ -594,32 +623,32 @@ def render_core_project_page() -> None:
     st.subheader("Preview")
     st.dataframe(df.head(), use_container_width=True)
 
-    # -------------------------------------------------------------
-    # Column selection
-    # -------------------------------------------------------------
-    date_candidates = detect_datetime_columns(df)
-    date_col = st.selectbox(
-        "Date / time column",
-        date_candidates if date_candidates else list(df.columns),
-        index=0,
-    )
-
-    numeric_cols = find_numeric_candidate_columns(df, exclude=date_col)
-    if not numeric_cols:
-        st.error(
-            "No numeric candidate columns found. Make sure the date column is correct."
+    # Column selection - Compacted using 2 columns
+    st.markdown("##### Data / Target Selection")
+    col_date, col_target = st.columns(2)
+    with col_date:
+        date_candidates = detect_datetime_columns(df)
+        date_col = st.selectbox(
+            "Date / time column",
+            date_candidates if date_candidates else list(df.columns),
+            index=0,
         )
-        return
 
-    target_col = st.selectbox("Target column (numeric)", numeric_cols)
+    with col_target:
+        numeric_cols = find_numeric_candidate_columns(df, exclude=date_col)
+        if not numeric_cols:
+            st.error(
+                "No numeric candidate columns found. Make sure the date column is correct."
+            )
+            return
+
+        target_col = st.selectbox("Target column (numeric)", numeric_cols)
 
     if date_col == target_col:
         st.error("Date column and target column must be different.")
         return
 
-    # -------------------------------------------------------------
     # Parse index + numeric target
-    # -------------------------------------------------------------
     parsed_dates = pd.to_datetime(df[date_col].astype(str), errors="coerce")
     valid_date_mask = parsed_dates.notna()
     if valid_date_mask.sum() == 0:
@@ -645,32 +674,31 @@ def render_core_project_page() -> None:
     base_series = base_series[~base_series.index.duplicated(keep="first")].astype(float)
     base_series.index.name = "Date"
 
-    # -------------------------------------------------------------
-    # Layout: left = data prep, right = model settings
-    # -------------------------------------------------------------
+    # Layout: left = data prep (3 columns), right = model settings (compacted)
     st.subheader("Configure & Run Models")
-    prep_col, settings_col = st.columns([3, 2])
+    prep_chart_col, settings_col = st.columns([3, 1])  # Adjusted column ratio
 
-    # defaults that we’ll override in settings_col
     arima_order = (1, 1, 1)
     seasonal_order: Optional[tuple] = None
     rf_n_lags = 7
     rf_n_estimators = 200
-
-    # ---------------------------------------------------------
-    # LEFT: series transform, history selection
-    # ---------------------------------------------------------
-    with prep_col:
+    
+    # LEFT: series transform, history selection, and plot
+    with prep_chart_col:
         st.markdown("##### Target transform & history")
 
-        transform = st.selectbox(
-            "Transform",
-            ["Raw values", "Log values", "Log returns (Δ log)", "Percent change"],
-            help=(
-                "• Airline / housing / demand → Raw or Log\n"
-                "• Stocks (yfinance) → Log returns or Percent change"
-            ),
-        )
+        # Use 3 columns for data prep
+        t_col, m_col, h_col = st.columns(3)
+        
+        with t_col:
+            transform = st.selectbox(
+                "Transform",
+                ["Raw values", "Log values", "Log returns (Δ log)", "Percent change"],
+                help=(
+                    "• Airline / housing / demand → Raw or Log\n"
+                    "• Stocks (yfinance) → Log returns or Percent change"
+                ),
+            )
 
         series = base_series.copy()
         try:
@@ -694,11 +722,13 @@ def render_core_project_page() -> None:
             st.error(f"Error applying transform: {e}")
             return
 
-        strategy = st.radio(
-            "Missing values",
-            ["Drop", "Forward fill", "Linear interpolate"],
-            horizontal=True,
-        )
+        with m_col:
+            strategy = st.radio(
+                "Missing values",
+                ["Drop", "Forward fill", "Linear interpolate"],
+                horizontal=True,
+            )
+        
         if strategy == "Drop":
             series = series.dropna()
         elif strategy == "Forward fill":
@@ -709,13 +739,14 @@ def render_core_project_page() -> None:
         if len(series) < 20:
             st.warning("Very short series – metrics may be unstable.")
 
-        history_len = st.slider(
-            "History window (last N points)",
-            min_value=min(20, len(series)),
-            max_value=len(series),
-            value=min(144, len(series)),
-            step=1,
-        )
+        with h_col:
+            history_len = st.slider(
+                "History window (last N points)",
+                min_value=min(20, len(series)),
+                max_value=len(series),
+                value=min(144, len(series)),
+                step=1,
+            )
         series = series.tail(history_len)
 
         st.line_chart(series, use_container_width=True)
@@ -724,19 +755,19 @@ def render_core_project_page() -> None:
             "The last H points form the test set (H = forecast horizon)."
         )
 
-    # ---------------------------------------------------------
     # RIGHT: model selection + parameter menus
-    # ---------------------------------------------------------
     with settings_col:
         st.markdown("##### Models & parameters")
-
+        
         smart_hints = st.checkbox(
             "🔉 Smart hints (no auto changes)",
             value=True,
-            help="Shows gentle suggestions based on the data and your settings. "
-                 "It never changes parameters automatically.",
+            help=(
+                "Shows gentle suggestions based on the data and your settings. "
+                "It never changes parameters automatically."
+            ),
         )
-
+        
         max_horizon_val = max(1, min(60, len(series) - 5))
         horizon = st.number_input(
             "Forecast horizon (steps)",
@@ -749,9 +780,10 @@ def render_core_project_page() -> None:
         use_arima = st.checkbox("ARIMA / SARIMA (statsmodels)", value=True)
         use_rf = st.checkbox("Random Forest (sklearn)", value=True)
 
-        # --- ARIMA / SARIMA parameters ---
+        # ARIMA / SARIMA parameters
         if use_arima:
             with st.expander("ARIMA / SARIMA parameters", expanded=False):
+                st.caption("Non-Seasonal (p, d, q):")
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     p = st.number_input("p (AR)", 0, 5, 1, key="arima_p")
@@ -768,6 +800,7 @@ def render_core_project_page() -> None:
                     help="For monthly airline data use s=12, for weekly data use s=7, etc.",
                 )
                 if use_seasonal:
+                    st.caption("Seasonal (P, D, Q, s):")
                     cP, cD, cQ, cS = st.columns(4)
                     with cP:
                         P = st.number_input("P", 0, 5, 1, key="sea_P")
@@ -777,7 +810,7 @@ def render_core_project_page() -> None:
                         Q = st.number_input("Q", 0, 5, 1, key="sea_Q")
                     with cS:
                         s = st.number_input(
-                            "Season length s",
+                            "s",
                             1,
                             365,
                             12,
@@ -787,11 +820,10 @@ def render_core_project_page() -> None:
                 else:
                     seasonal_order = None
 
-        # --- Smart hints for ARIMA / SARIMA & transform ---
+        # Smart hints
         if smart_hints and use_arima:
             freq_code, freq_label = infer_frequency(base_series.index)
 
-            # Frequency hint
             if freq_code == "M" and seasonal_order is None:
                 st.info(
                     f"📎 Detected **{freq_label}**. For monthly airline / housing data, "
@@ -803,7 +835,6 @@ def render_core_project_page() -> None:
                     "seasonal SARIMA with **s = 7** is often useful."
                 )
 
-            # Transform hint (based on original level series)
             min_val = float(base_series.min())
             max_val = float(base_series.max())
             if transform == "Raw values" and min_val > 0 and max_val > 3 * min_val:
@@ -822,12 +853,12 @@ def render_core_project_page() -> None:
                     "AirPassengers-style examples, **Raw** or **Log values** are more common."
                 )
 
-        # --- Random Forest parameters ---
+        # Random Forest parameters
         if use_rf:
             with st.expander("Random Forest parameters", expanded=False):
                 max_lags_allowed = max(1, min(60, len(series) - 5))
                 rf_n_lags = st.slider(
-                    "Number of lag features",
+                    "Lag features",
                     1,
                     max_lags_allowed,
                     7,
@@ -835,7 +866,7 @@ def render_core_project_page() -> None:
                     key="rf_lags",
                 )
                 rf_n_estimators = st.slider(
-                    "Number of trees (n_estimators)",
+                    "Trees",
                     50,
                     500,
                     200,
@@ -851,9 +882,7 @@ def render_core_project_page() -> None:
     if not run_core:
         return
 
-    # -------------------------------------------------------------
     # Train / test split
-    # -------------------------------------------------------------
     horizon = int(horizon)
     if len(series) <= horizon + 5:
         st.error("Not enough history for this horizon. Reduce H or increase N.")
@@ -870,9 +899,7 @@ def render_core_project_page() -> None:
     forecasts: dict[str, pd.Series] = {}
     metrics_list: List[dict] = []
 
-    # -------------------------------------------------------------
     # ARIMA / SARIMA
-    # -------------------------------------------------------------
     if use_arima:
         try:
             label = (
@@ -903,9 +930,7 @@ def render_core_project_page() -> None:
         except Exception as e:
             st.error(f"ARIMA / SARIMA failed: {e}")
 
-    # -------------------------------------------------------------
     # Random Forest
-    # -------------------------------------------------------------
     if use_rf:
         try:
             with st.spinner("Training Random Forest..."):
@@ -927,16 +952,14 @@ def render_core_project_page() -> None:
         st.error("No forecasts were generated.")
         return
 
-    # -------------------------------------------------------------
-    # Metrics table
-    # -------------------------------------------------------------
+    # --- UPDATED LAYOUT START ---
+
+    # 1. Metrics table (Full width)
     st.subheader("Model Performance (Test Set)")
     metrics_df = pd.DataFrame(metrics_list).set_index("Model")
     st.dataframe(metrics_df.style.format("{:.2f}"), use_container_width=True)
 
-    # -------------------------------------------------------------
-    # Combined forecast plot
-    # -------------------------------------------------------------
+    # 2. Combined Forecast Plot + Forecast Data (Two columns)
     st.subheader("Forecast Results")
 
     hist_window = min(len(series), max(60, horizon * 2))
@@ -963,19 +986,26 @@ def render_core_project_page() -> None:
             color=alt.Color("Type:N", scale=neon_colors, legend=alt.Legend(title="Series")),
             tooltip=["Date:T", "Type:N", "Value:Q"],
         )
-        .properties(height=260)
+        .properties(height=350)
     )
 
     plot_col, table_col = st.columns([3, 2])
     with plot_col:
+        st.markdown("##### Combined Actual vs. Forecasts")
         st.altair_chart(combined_chart, use_container_width=True)
+    
     with table_col:
-        st.markdown("##### Performance summary")
-        st.dataframe(metrics_df.style.format("{:.2f}"), use_container_width=True)
+        mean_forecast = next(iter(forecasts.values()))  # first available forecast
+        table = pd.DataFrame({"Forecast": mean_forecast}).rename_axis('Date')
+        
+        st.markdown("##### Forecast Values (Next H Steps)")
+        st.dataframe(
+            table.style.format("{:.2f}"),
+            height=400,
+            use_container_width=True,
+        )
 
-    # -------------------------------------------------------------
-    # Detail charts
-    # -------------------------------------------------------------
+    # 3. Detail charts (Two columns)
     st.subheader("Model Details")
 
     detail_col1, detail_col2 = st.columns(2)
@@ -1002,7 +1032,6 @@ def render_core_project_page() -> None:
             .properties(height=230)
         )
 
-    # first detail: ARIMA/SARIMA if present
     with detail_col1:
         arima_name = next(
             (
@@ -1018,7 +1047,6 @@ def render_core_project_page() -> None:
             if chart is not None:
                 st.altair_chart(chart, use_container_width=True)
 
-    # second detail: Random Forest
     with detail_col2:
         if "Random Forest" in forecasts:
             st.caption("Random Forest")
@@ -1039,7 +1067,6 @@ def render_core_project_page() -> None:
             **RF lags:** `{rf_n_lags}`  **RF trees:** `{rf_n_estimators}`
             """
         )
-
 
 # -------------------------------------------------------------------------
 # Data page
@@ -1076,7 +1103,6 @@ def render_data_page():
                 "This plot shows total sales per day across all stores. "
                 "Note the annual seasonality and New Year closures (zeros)."
             )
-
 
 # -------------------------------------------------------------------------
 # Kaggle Forecast page (advanced)
@@ -1463,12 +1489,11 @@ def render_forecast_page():
                 model_dir.mkdir()
                 st.success("Cache cleared!")
 
-
 # -------------------------------------------------------------------------
-# Inventory page
+# Inventory page - REDESIGNED
 # -------------------------------------------------------------------------
 def render_inventory_page():
-    st.header("Inventory Decisions (Safety Stock & ROP)")
+    st.header("Inventory Decisions (Safety Stock & ROP) 📈")
 
     if "last_forecast" not in st.session_state:
         st.info(
@@ -1477,8 +1502,9 @@ def render_inventory_page():
         return
 
     lf = st.session_state["last_forecast"]
-    st.write(
-        f"Based on forecast for: **{lf['family']}** at Store **{lf['store_nbr']}** using **{lf['model_type']}**."
+    st.markdown(
+        f'<p class="app-subtitle" style="color: #cbd5e1;">Based on forecast for: <strong style="color: #fca5a5;">{lf["family"]}</strong> at Store <strong style="color: #fca5a5;">{lf["store_nbr"]}</strong> using <strong style="color: #fca5a5;">{lf["model_type"]}</strong>.</p>',
+        unsafe_allow_html=True,
     )
 
     mean = lf["mean"]
@@ -1486,46 +1512,233 @@ def render_inventory_page():
 
     if std is None:
         st.warning(
-            "No uncertainty information available. Safety stock will be approximate."
+            "⚠️ No uncertainty information available. Safety stock will be approximate based on historical standard deviation of the forecast."
         )
-        std_val = float(mean.std())
+        # Use a sensible fallback: standard deviation of the last 60 days of actuals + forecast error
+        fallback_std = float(lf["actual"].std() * 0.7 + mean.std() * 0.3)
+        std_val = fallback_std if not np.isnan(fallback_std) and fallback_std > 0 else 1.0
     else:
+        # Use the mean of the forecast standard deviation
         std_val = float(std.mean())
 
     mean_daily = float(mean.mean())
 
-    col1, col2 = st.columns(2)
+    # --- INPUT CONTROLS ---
+    st.markdown("---")
+    st.subheader("Configuration")
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
     with col1:
         lead_time_days = st.number_input(
-            "Lead time (days)", 1.0, 60.0, 14.0, step=1.0
+            "🚚 Lead time (days)", 
+            min_value=1.0, 
+            value=14.0, 
+            step=1.0,
+            help="Time taken from order placement to stock arrival.",
+            key="lt_days"
         )
     with col2:
         service_level = st.slider(
-            "Target service level", 0.80, 0.99, 0.95, step=0.01
+            "📅 Target service level", 
+            0.80, 
+            0.99, 
+            0.95, 
+            step=0.01,
+            format="%.2f",
+            help="The probability of avoiding a stockout during the lead time.",
+            key="serv_lvl"
         )
 
+    # Map service level to nearest z-score
     z_map = {
-        0.80: 0.84,
-        0.85: 1.04,
-        0.90: 1.28,
-        0.95: 1.65,
-        0.98: 2.05,
-        0.99: 2.33,
+        0.80: 0.84, 0.85: 1.04, 0.90: 1.28, 
+        0.95: 1.65, 0.98: 2.05, 0.99: 2.33,
     }
     z = min(z_map.items(), key=lambda kv: abs(kv[0] - service_level))[1]
-
+    
+    # Financial inputs in the third column
+    with col3:
+        unit_cost = st.number_input(
+            "💵 Unit cost ($/unit)", min_value=0.0, value=2.50, step=0.10, key="u_cost"
+        )
+        
+    # Recalculate based on inputs
     safety_stock = compute_safety_stock(std_val, z)
     reorder_point = compute_reorder_point(mean_daily, lead_time_days, safety_stock)
 
-    st.subheader("Inventory recommendations")
-    m_col1, m_col2 = st.columns(2)
-    with m_col1:
-        st.metric("Safety stock (units)", f"{safety_stock:,.0f}")
-        st.metric("Avg Daily Demand", f"{mean_daily:,.0f}")
-    with m_col2:
-        st.metric("Reorder point (units)", f"{reorder_point:,.0f}")
+    # --- CORE METRICS ---
+    st.markdown("---")
+    st.subheader("Inventory Recommendations & Key Inputs")
+    
+    col_ss, col_rop, col_demand, col_std = st.columns(4)
+
+    # Use custom HTML/CSS for enhanced metric cards
+    st.markdown("""
+        <style>
+        .metric-card {
+            background-color: #0f172a;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-top: 5px solid;
+            margin-bottom: 20px;
+        }
+        .metric-title {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        .ss-border { border-top-color: #22c55e; } /* Green */
+        .rop-border { border-top-color: #3b82f6; } /* Blue */
+        .demand-border { border-top-color: #f97316; } /* Orange */
+        .std-border { border-top-color: #a855f7; } /* Purple */
+        </style>
+    """, unsafe_allow_html=True)
 
 
+    with col_ss:
+        st.markdown(f"""
+            <div class="metric-card ss-border">
+                <div class="metric-title">🛡️ Safety Stock (units)</div>
+                <div class="metric-value" style="color: #86efac;">{safety_stock:,.0f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col_rop:
+        st.markdown(f"""
+            <div class="metric-card rop-border">
+                <div class="metric-title">🔴Reorder Point (units)</div>
+                <div class="metric-value" style="color: #93c5fd;">{reorder_point:,.0f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col_demand:
+        st.markdown(f"""
+            <div class="metric-card demand-border">
+                <div class="metric-title">🟡Avg Daily Demand</div>
+                <div class="metric-value" style="color: #fdba74;">{mean_daily:,.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col_std:
+        st.markdown(f"""
+            <div class="metric-card std-border">
+                <div class="metric-title">🟠emand Stdev (Lead Time)</div>
+                <div class="metric-value" style="color: #d8b4fe;">{std_val:,.2f}</div>
+                <small style="color: #94a3b8;">(Z-score: {z:.2f})</small>
+            </div>
+        """, unsafe_allow_html=True)
+
+
+    # --- EXPLANATORY NOTES ---
+    st.markdown("##### What do these numbers mean?")
+    note_col1, note_col2 = st.columns(2)
+    
+    with note_col1:
+        st.markdown("""
+<div class="card-window theme-green">
+<span class="card-tag tag-green">Safety Stock</span>
+<h4>Your Insurance Buffer</h4>
+<p>This is the extra amount of inventory you hold to prevent stockouts if demand is higher than expected or if the supplier lead time is longer than anticipated. It's directly tied to your <strong>Target Service Level</strong>.</p>
+</div>
+        """, unsafe_allow_html=True)
+        
+    with note_col2:
+        st.markdown("""
+<div class="card-window theme-blue">
+<span class="card-tag tag-blue">Reorder Point (ROP)</span>
+<h4>The Order Trigger</h4>
+<p>When your stock level drops to this number, you must place a new order. The ROP ensures you have enough stock to meet demand during the <strong>Lead Time</strong> (ROP = Demand during Lead Time + Safety Stock).</p>
+</div>
+        """, unsafe_allow_html=True)
+
+    # --- FINANCIAL IMPACT ---
+    st.markdown("---")
+    st.subheader("Financial Impact of Inventory Policy 𝄃𝄃𝄂𝄂𝄀𝄁𝄃𝄂𝄂𝄃")
+
+    # Financial Inputs (now consolidated to the second line of inputs)
+    fin_in1, fin_in2, fin_in3 = st.columns(3)
+    with fin_in1:
+        # Unit cost is already defined in the main input section (col3)
+        st.write("Unit cost is **$**", f"{unit_cost:,.2f}") 
+    with fin_in2:
+        holding_rate = st.number_input(
+            "Annual holding cost rate",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.25,
+            step=0.01,
+            format="%.2f",
+            help="Fraction of inventory value per year (e.g. 0.25 = 25%).",
+            key="h_rate"
+        )
+    with fin_in3:
+        stockout_cost_per_unit = st.number_input(
+            "Stockout cost per unit ($)",
+            min_value=0.0,
+            value=5.00,
+            step=0.50,
+            key="so_cost",
+            help="Lost margin / rush shipping / penalty per unit not served.",
+        )
+
+    fin = compute_inventory_financials(
+        safety_stock=safety_stock,
+        reorder_point=reorder_point,
+        unit_cost=unit_cost,
+        holding_cost_rate=holding_rate,
+    )
+
+    expected_stockout_cost = compute_expected_stockout_cost(
+        mean_daily_demand=mean_daily,
+        lead_time_days=lead_time_days,
+        service_level=service_level,
+        stockout_cost_per_unit=stockout_cost_per_unit,
+    )
+
+    # Financial Metrics (Cards)
+    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+
+    with f_col1:
+        st.markdown(f"""
+            <div class="metric-card ss-border">
+                <div class="metric-title">📦 Safety Stock Value</div>
+                <div class="metric-value" style="color: #86efac;">${fin['safety_stock_value']:,.0f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with f_col2:
+        st.markdown(f"""
+            <div class="metric-card rop-border">
+                <div class="metric-title">🏦 Inventory Value at ROP</div>
+                <div class="metric-value" style="color: #93c5fd;">${fin['reorder_point_value']:,.0f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with f_col3:
+        # Use Red/Orange for Cost
+        cost_color = "#fca5a5" 
+        st.markdown(f"""
+            <div class="metric-card theme-red">
+                <div class="metric-title" style="color: #fca5a5;">💸 Annual Carrying Cost (SS)</div>
+                <div class="metric-value" style="color: {cost_color};">${fin['annual_carrying_cost_safety_stock']:,.0f}/year</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with f_col4:
+        # Use Red for Cost
+        st.markdown(f"""
+            <div class="metric-card theme-red">
+                <div class="metric-title" style="color: #fca5a5;">💔 Expected Stockout Cost (Cycle)</div>
+                <div class="metric-value" style="color: {cost_color};">${expected_stockout_cost:,.0f}</div>
+            </div>
+        """, unsafe_allow_html=True) 
 # -------------------------------------------------------------------------
 # Leaderboard page
 # -------------------------------------------------------------------------
@@ -1591,7 +1804,6 @@ def render_leaderboard_page():
     else:
         st.info(f"No leaderboard data found in `{path}`.")
 
-
 # -------------------------------------------------------------------------
 # Ablation page
 # -------------------------------------------------------------------------
@@ -1646,7 +1858,6 @@ def render_ablation_page():
             f"No ablation data found. Run the notebooks or backtesting script to generate `{path}`."
         )
 
-
 # -------------------------------------------------------------------------
 # Route pages
 # -------------------------------------------------------------------------
@@ -1664,4 +1875,3 @@ elif page == "Model Leaderboard":
     render_leaderboard_page()
 elif page == "Ablation & Feature Importance":
     render_ablation_page()
-

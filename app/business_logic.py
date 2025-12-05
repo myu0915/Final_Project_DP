@@ -6,11 +6,13 @@ This file focuses on the connection between forecasts and inventory decisions.
 Right now we implement:
 1. Safety stock calculation
 2. Reorder point calculation
+3. Simple financial impact calculations
 
-Later you can extend this with:
+Extendable with:
 - Holding cost
 - Stockout cost
 - Service-level optimization
+- More advanced financial models
 """
 
 
@@ -74,3 +76,99 @@ def compute_reorder_point(
     """
     reorder_point = mean_daily_demand * lead_time_days + safety_stock
     return reorder_point
+
+
+# ---------------------------------------------------------------------------
+# Financial helpers
+# ---------------------------------------------------------------------------
+
+def compute_inventory_financials(
+    safety_stock: float,
+    reorder_point: float,
+    unit_cost: float,
+    holding_cost_rate: float,
+) -> dict:
+    """
+    Compute simple financial metrics for an inventory policy.
+
+    Parameters
+    ----------
+    safety_stock : float
+        Safety stock in units.
+    reorder_point : float
+        Reorder point in units.
+    unit_cost : float
+        Purchase cost per unit (in currency, e.g. dollars).
+    holding_cost_rate : float
+        Annual holding cost rate as a fraction of unit value.
+        Example: 0.25 = 25% of inventory value per year.
+
+    Returns
+    -------
+    dict
+        Dictionary with:
+        - 'safety_stock_value'
+        - 'reorder_point_value'
+        - 'annual_carrying_cost_safety_stock'
+        - 'annual_carrying_cost_rop'
+    """
+    # Value of inventory positions (in currency)
+    safety_stock_value = safety_stock * unit_cost
+    reorder_point_value = reorder_point * unit_cost
+
+    # Annual carrying cost (very simple approximation)
+    annual_carrying_cost_safety_stock = safety_stock_value * holding_cost_rate
+    annual_carrying_cost_rop = reorder_point_value * holding_cost_rate
+
+    return {
+        "safety_stock_value": safety_stock_value,
+        "reorder_point_value": reorder_point_value,
+        "annual_carrying_cost_safety_stock": annual_carrying_cost_safety_stock,
+        "annual_carrying_cost_rop": annual_carrying_cost_rop,
+    }
+
+
+def compute_expected_stockout_cost(
+    mean_daily_demand: float,
+    lead_time_days: float,
+    service_level: float,
+    stockout_cost_per_unit: float,
+) -> float:
+    """
+    Approximate expected stockout cost per replenishment cycle.
+
+    Very simple, dashboard-oriented model:
+    - Probability of a stockout during a cycle ~= (1 - service_level)
+    - If a stockout happens, it affects roughly
+      mean_daily_demand * lead_time_days units.
+    - Each unit of unmet demand has a cost (lost margin, rush shipment, penalty).
+
+    This is meant for illustrative purposes on the dashboard, not detailed
+    operations planning.
+
+    Parameters
+    ----------
+    mean_daily_demand : float
+        Average demand per day.
+    lead_time_days : float
+        Lead time in days.
+    service_level : float
+        Target cycle service level between 0 and 1 (e.g. 0.95).
+    stockout_cost_per_unit : float
+        Monetary cost per unit of unsatisfied demand.
+
+    Returns
+    -------
+    float
+        Expected stockout cost per cycle (in currency).
+    """
+    expected_units_in_lead_time = mean_daily_demand * lead_time_days
+
+    # Clamp service level into [0, 1] just to be safe
+    service_level_clamped = max(0.0, min(1.0, service_level))
+    prob_stockout = 1.0 - service_level_clamped
+
+    expected_stockout_units = prob_stockout * expected_units_in_lead_time
+    expected_stockout_cost = expected_stockout_units * stockout_cost_per_unit
+
+    return expected_stockout_cost
